@@ -7,7 +7,7 @@ Created on Mon Aug  4 01:53:56 2025
 
 import streamlit as st
 import numpy as np
-import random as rd
+from numpy import random as rd
 from scipy.stats import weibull_min
 
 # Título
@@ -136,6 +136,7 @@ if st.button("Estimate Weibull Parameters") and TM > 0 and DM > 0:
 
 
  
+
 
 
 
