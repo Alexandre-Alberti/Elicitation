@@ -7,7 +7,7 @@ Created on Mon Aug  4 01:53:56 2025
 
 import streamlit as st
 import numpy as np
-import random as rd
+from numpy import random as rd
 import matplotlib.pyplot as plt
 
 # Título
@@ -106,17 +106,4 @@ if st.button("Estimate Weibull Parameters") and TM > 0:
     st.write(f"Central value (Q2): {eta_central:.4f} {unit}")
     st.write(f"Relative imprecision: {eta_imprecisao:.2f}%")
 
-    # Plotar histogramas
-    fig_beta, ax_beta = plt.subplots()
-    ax_beta.hist(sample_beta, bins=30, color="skyblue", edgecolor="black")
-    ax_beta.set_title("Distribution of beta")
-    ax_beta.set_xlabel("Beta")
-    ax_beta.set_ylabel("Frequency")
-    st.pyplot(fig_beta)
-
-    fig_eta, ax_eta = plt.subplots()
-    ax_eta.hist(sample_eta, bins=30, color="lightgreen", edgecolor="black")
-    ax_eta.set_title("Distribution of eta")
-    ax_eta.set_xlabel(f"Eta ({unit})")
-    ax_eta.set_ylabel("Frequency")
-    st.pyplot(fig_eta)
+ 
