@@ -7,6 +7,8 @@ Created on Mon Aug  4 01:53:56 2025
 
 import streamlit as st
 import numpy as np
+import random as rd
+import matplotlib.pyplot as plt
 
 # Título
 st.title("Elicitation for delay-time model")
@@ -34,11 +36,11 @@ qualitative_options = {
     "Very Low (unlikely) – 0 to 10%": (0.01, 10),
 }
 
-# Geração dos tempos para as perguntas
+matrix_t = np.zeros(5)
+matrix_p = np.zeros([5, 2])
+
 if TM > 0:
     time_points = [int(x) for x in [0.1 * TM, 0.5 * TM, TM, 1.5 * TM, 2 * TM]]
-    matrix_t = np.zeros([5, 1])
-    matrix_p = np.zeros([5, 2])
 
     st.markdown("### Estimated survival probabilities:")
 
@@ -47,20 +49,74 @@ if TM > 0:
         question = f"What is the chance the system remains functional after {t} {unit} of operation?"
         response = st.selectbox(question, list(qualitative_options.keys()), key=f"resp_{i}")
         
-        matrix_t[i][0] = t
+        matrix_t[i] = t
         matrix_p[i][0] = qualitative_options[response][0]
         matrix_p[i][1] = qualitative_options[response][1]
 
-    # Mostra os resultados
-    st.markdown("### Summary of inputs:")
-    st.write(f"Time unit: {unit}")
-    st.write(f"Average time to failure (TM): {TM} {unit}")
-    st.write(f"Average delay-time (DM): {DM} {unit}")
-    
-    st.markdown("#### Time points:")
-    st.dataframe(matrix_t, use_container_width=True)
+# Botão para calcular parâmetros
+if st.button("Estimate Weibull Parameters") and TM > 0:
+    sample_eta = np.zeros(1000)
+    sample_beta = np.zeros(1000)
 
-    st.markdown("#### Probability intervals (min %, max %):")
-    st.dataframe(matrix_p, use_container_width=True)
+    for i in range(1000):
+        f_prob = np.zeros(5)
+        s_prob = np.zeros(5)
+        s_prob[0] = rd.uniform(matrix_p[0][0], matrix_p[0][1])
+        f_prob[0] = (100 - s_prob[0]) / 100
 
+        for j in range(1, 5):
+            lim_sup = min(s_prob[j-1], matrix_p[j][1])
+            s_prob[j] = rd.uniform(matrix_p[j][0], lim_sup)
+            f_prob[j] = (100 - s_prob[j]) / 100
 
+        x_input = np.log(matrix_t)
+        y_input = np.log(1 / (1 - f_prob))
+
+        A, B = np.polyfit(x_input, y_input, 1)
+        beta = A
+        eta = np.exp(-B / beta)
+
+        sample_beta[i] = beta
+        sample_eta[i] = eta
+
+    # Estatísticas de beta
+    beta_25 = np.percentile(sample_beta, 25)
+    beta_75 = np.percentile(sample_beta, 75)
+    beta_central = (beta_25 + beta_75) / 2
+    beta_imprecisao = 100 * (beta_75 - beta_central) / beta_central
+
+    # Estatísticas de eta
+    eta_25 = np.percentile(sample_eta, 25)
+    eta_75 = np.percentile(sample_eta, 75)
+    eta_central = (eta_25 + eta_75) / 2
+    eta_imprecisao = 100 * (eta_75 - eta_central) / eta_central
+
+    # Exibir resultados
+    st.markdown("### Weibull Parameter Estimates (from Monte Carlo Sampling)")
+
+    st.markdown("**Beta (shape parameter):**")
+    st.write(f"25th percentile: {beta_25:.4f}")
+    st.write(f"75th percentile: {beta_75:.4f}")
+    st.write(f"Central value (Q2): {beta_central:.4f}")
+    st.write(f"Relative imprecision: {beta_imprecisao:.2f}%")
+
+    st.markdown("**Eta (scale parameter):**")
+    st.write(f"25th percentile: {eta_25:.4f} {unit}")
+    st.write(f"75th percentile: {eta_75:.4f} {unit}")
+    st.write(f"Central value (Q2): {eta_central:.4f} {unit}")
+    st.write(f"Relative imprecision: {eta_imprecisao:.2f}%")
+
+    # Plotar histogramas
+    fig_beta, ax_beta = plt.subplots()
+    ax_beta.hist(sample_beta, bins=30, color="skyblue", edgecolor="black")
+    ax_beta.set_title("Distribution of beta")
+    ax_beta.set_xlabel("Beta")
+    ax_beta.set_ylabel("Frequency")
+    st.pyplot(fig_beta)
+
+    fig_eta, ax_eta = plt.subplots()
+    ax_eta.hist(sample_eta, bins=30, color="lightgreen", edgecolor="black")
+    ax_eta.set_title("Distribution of eta")
+    ax_eta.set_xlabel(f"Eta ({unit})")
+    ax_eta.set_ylabel("Frequency")
+    st.pyplot(fig_eta)
