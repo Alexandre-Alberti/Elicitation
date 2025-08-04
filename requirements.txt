@@ -1,4 +1,4 @@
 streamlit
 numpy
 random
-matplotlib.plt
+matplotlib.pyplot
