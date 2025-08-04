@@ -90,11 +90,11 @@ if st.button("Estimate Weibull Parameters") and TM > 0 and DM > 0:
     eta_central = (eta_25 + eta_75) / 2
     eta_imprecisao = 100 * (eta_75 - eta_central) / eta_central
 
-    st.markdown("### Weibull Estimates for Time to Failure")
-    st.markdown(f"- **Beta:** {beta_central:.4f} (IQR: {beta_25:.4f} – {beta_75:.4f})")
-    st.markdown(f"- **Eta:** {eta_central:.4f} {unit} (IQR: {eta_25:.4f} – {eta_75:.4f})")
-    st.markdown(f"- **Beta Relative Imprecision:** {beta_imprecisao:.2f}%")
-    st.markdown(f"- **Eta Relative Imprecision:** {eta_imprecisao:.2f}%")
+    st.markdown("Time to Failure - Parameters for Weibull probability distribution")
+    st.markdown(f"- **Shape paramater (beta):** {beta_central:.2f} (IQR: {beta_25:.2f} – {beta_75:.2f})")
+    st.markdown(f"- **Scale parameter (eta):** {eta_central:.2f} {unit} (IQR: {eta_25:.2f} – {eta_75:.2f})")
+    st.markdown(f"- **Beta relative imprecision:** {beta_imprecisao:.2f}%")
+    st.markdown(f"- **Eta relative imprecision:** {eta_imprecisao:.2f}%")
 
     # Estimativa de X = Z - H
     sample_eta_x = np.zeros(1000)
@@ -128,14 +128,15 @@ if st.button("Estimate Weibull Parameters") and TM > 0 and DM > 0:
     eta_x_central = (eta_x_25 + eta_x_75) / 2
     eta_x_imprecisao = 100 * (eta_x_75 - eta_x_central) / eta_x_central
 
-    st.markdown("### Weibull Estimates for Time from Detection to Failure")
-    st.markdown(f"- **Beta_x:** {beta_x_central:.4f} (IQR: {beta_x_25:.4f} – {beta_x_75:.4f})")
-    st.markdown(f"- **Eta_x:** {eta_x_central:.4f} {unit} (IQR: {eta_x_25:.4f} – {eta_x_75:.4f})")
-    st.markdown(f"- **Beta_x Relative Imprecision:** {beta_x_imprecisao:.2f}%")
-    st.markdown(f"- **Eta_x Relative Imprecision:** {eta_x_imprecisao:.2f}%")
+    st.markdown("Time to defect arrival - Parameters for Weibull probability distribution")
+    st.markdown(f"- **Shape parameter (beta):** {beta_x_central:.2f} (IQR: {beta_x_25:.2f} – {beta_x_75:.2f})")
+    st.markdown(f"- **Scape parameter (eta):** {eta_x_central:.2f} {unit} (IQR: {eta_x_25:.2f} – {eta_x_75:.2f})")
+    st.markdown(f"- **Beta relative imprecision:** {beta_x_imprecisao:.2f}%")
+    st.markdown(f"- **Eta relative imprecision:** {eta_x_imprecisao:.2f}%")
 
 
  
+
 
 
 
