@@ -8,7 +8,7 @@ Created on Mon Aug  4 01:53:56 2025
 import streamlit as st
 import numpy as np
 from numpy import random as rd
-import matplotlib.pyplot as plt
+
 
 # Título
 st.title("Elicitation for delay-time model")
@@ -107,3 +107,4 @@ if st.button("Estimate Weibull Parameters") and TM > 0:
     st.write(f"Relative imprecision: {eta_imprecisao:.2f}%")
 
  
+
