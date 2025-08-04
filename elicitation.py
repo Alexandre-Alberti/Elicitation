@@ -6,6 +6,7 @@ Created on Mon Aug  4 01:53:56 2025
 """
 
 import streamlit as st
+import numpy as np
 
 # Título
 st.title("Elicitation for delay-time model")
@@ -36,23 +37,30 @@ qualitative_options = {
 # Geração dos tempos para as perguntas
 if TM > 0:
     time_points = [int(x) for x in [0.1 * TM, 0.5 * TM, TM, 1.5 * TM, 2 * TM]]
-    survival_estimates = {}
+    matrix_t = np.zeros([5, 1])
+    matrix_p = np.zeros([5, 2])
 
     st.markdown("### Estimated survival probabilities:")
 
-    for idx, t in enumerate(time_points):
+    for i in range(5):
+        t = time_points[i]
         question = f"What is the chance the system remains functional after {t} {unit} of operation?"
-        response = st.selectbox(question, list(qualitative_options.keys()), key=f"q{idx+1}")
-        survival_estimates[t] = {
-            "response": response,
-            "min_percent": qualitative_options[response][0],
-            "max_percent": qualitative_options[response][1]
-        }
+        response = st.selectbox(question, list(qualitative_options.keys()), key=f"resp_{i}")
+        
+        matrix_t[i][0] = t
+        matrix_p[i][0] = qualitative_options[response][0]
+        matrix_p[i][1] = qualitative_options[response][1]
 
-    # Exibir resultados finais (para debug ou confirmação)
-    st.markdown("### Summary of Inputs")
-    st.write("Time unit:", unit)
-    st.write("Average time to failure (TM):", TM, unit)
-    st.write("Average delay-time (DM):", DM, unit)
-    st.write("Survival estimates:")
-    st.json(survival_estimates)
+    # Mostra os resultados
+    st.markdown("### Summary of inputs:")
+    st.write(f"Time unit: {unit}")
+    st.write(f"Average time to failure (TM): {TM} {unit}")
+    st.write(f"Average delay-time (DM): {DM} {unit}")
+    
+    st.markdown("#### Time points:")
+    st.dataframe(matrix_t, use_container_width=True)
+
+    st.markdown("#### Probability intervals (min %, max %):")
+    st.dataframe(matrix_p, use_container_width=True)
+
+
