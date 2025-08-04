@@ -70,7 +70,7 @@ if st.button("Estimate Weibull Parameters") and TM > 0:
             f_prob[j] = (100 - s_prob[j]) / 100
 
         x_input = np.log(matrix_t)
-        y_input = np.log(1 / (1 - f_prob))
+        y_input = np.log(np.log(1 / (1 - f_prob)))
 
         A, B = np.polyfit(x_input, y_input, 1)
         beta = A
@@ -107,4 +107,5 @@ if st.button("Estimate Weibull Parameters") and TM > 0:
     st.write(f"Relative imprecision: {eta_imprecisao:.2f}%")
 
  
+
 
