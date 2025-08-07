@@ -45,7 +45,7 @@ if TM > 0:
     st.markdown("### Estimated survival probabilities:")
     for i in range(5):
         t = time_points[i]
-        response = st.selectbox(f"Chance system remains functional after {t} {unit}:", list(qualitative_options.keys()), key=f"resp_{i}")
+        response = st.selectbox(f"Chance that the system remains operational after {t} {unit}", list(qualitative_options.keys()), key=f"resp_{i}")
         matrix_t[i] = t
         matrix_p[i][0] = qualitative_options[response][0]
         matrix_p[i][1] = qualitative_options[response][1]
@@ -133,6 +133,7 @@ if st.button("Estimate parameters"):
 
 
  
+
 
 
 
