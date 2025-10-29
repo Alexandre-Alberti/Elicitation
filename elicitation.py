@@ -2,12 +2,17 @@
 """
 Elicitation for delay-time model (Streamlit)
 
-Correções principais:
-- Evita zeros em tempos padrão (log(0)).
+Comportamento:
+- Se TM > 0: coleta probabilidades qualitativas e estima Z ~ Weibull.
+- Se DM <= 0 (ou usuário deixa DM e ID = 0): calcula apenas Z e pula X (= Z − H).
+- Se DM > 0: calcula também X, usando H ~ Exp(1/DM) com imprecisão relativa ID (%).
+
+Robustez:
+- Evita zeros em tempos (log(0)).
 - 'Clampe' de probabilidades para (0,1) antes de log/log.
 - Checagens de finitude e cardinalidade antes do polyfit.
 - Monotonicidade e limites válidos para s_prob.
-- Mensagens de erro/aviso mais claras no Streamlit.
+- Mensagens claras no Streamlit.
 
 Autor original: alexa
 Ajustes: ChatGPT (2025-10-28)
@@ -26,17 +31,6 @@ EPS = 1e-9
 def safe_clip01(p, eps=EPS):
     """Clampa probabilidades para (eps, 1-eps)."""
     return float(np.clip(p, eps, 1 - eps))
-
-def safe_log_weibull_transform_probs(p_failure_array):
-    """
-    Recebe array de probabilidades de falha (0,1).
-    Retorna y = log(-log(1 - p)), com clamp e filtro de finitos.
-    """
-    p = np.asarray(p_failure_array, dtype=float)
-    p = np.clip(p, EPS, 1 - EPS)
-    y = np.log(-np.log(1.0 - p))
-    mask = np.isfinite(y)
-    return y, mask
 
 def ensure_finite_pair(x, y):
     """Aplica máscara de finitude a x e y e garante pelo menos 2 pontos."""
@@ -127,12 +121,7 @@ if st.button("Estimate parameters"):
     if TM <= 0:
         st.error("Informe um TM > 0.")
         st.stop()
-    if DM <= 0:
-        st.error("Informe um DM > 0.")
-        st.stop()
-    if ID < 0:
-        st.error("A imprecisão (ID) deve ser ≥ 0%.")
-        st.stop()
+    # Observação: não exigimos DM > 0 aqui, para permitir calcular apenas Z
 
     # Reconstrói pontos de tempo e coleta respostas
     time_points = get_time_points(TM)
@@ -176,7 +165,6 @@ if st.button("Estimate parameters"):
                 s_prob[j] = rd.uniform(lim_inf, lim_sup)
 
             f_prob[j] = (100.0 - s_prob[j]) / 100.0
-            # Se toda sobrevivência for 100% (falha 0%) ou 0% (falha 100%), ajuste depois
             if not (0.0 <= f_prob[j] <= 1.0):
                 ok_sequence = False
                 break
@@ -234,99 +222,102 @@ if st.button("Estimate parameters"):
     st.write(f"**Eta relative imprecision:** {eta_imprecisao:.2f}%")
 
     # -------------------------
-    # Estimativa para X = Z - H (tempo até defeito)
+    # Estimativa para X = Z - H (tempo até defeito) — somente se DM > 0
     # -------------------------
-    # Se o intervalo interquartil de Z ficar degenerado, não dá para amostrar X
-    if not (np.isfinite(beta_25) and np.isfinite(beta_75) and beta_75 > beta_25 and
-            np.isfinite(eta_25) and np.isfinite(eta_75) and eta_75 > eta_25):
-        st.warning("Intervalo interquartil de Z degenerado. Não é possível estimar X (= Z − H) com estabilidade.")
-        st.stop()
+    if DM > 0:
+        # Se o IQR de Z estiver degenerado, não dá para amostrar X
+        if not (np.isfinite(beta_25) and np.isfinite(beta_75) and beta_75 > beta_25 and
+                np.isfinite(eta_25) and np.isfinite(eta_75) and eta_75 > eta_25):
+            st.warning("Intervalo interquartil de Z degenerado. Não é possível estimar X (= Z − H) com estabilidade.")
+            st.stop()
 
-    n_k = 150  # número de amostras para X (pode ajustar)
-    sample_eta_x = []
-    sample_beta_x = []
+        n_k = 150  # número de amostras para X (pode ajustar)
+        sample_eta_x = []
+        sample_beta_x = []
 
-    for k in range(n_k):
-        escala = rd.uniform(float(eta_25), float(eta_75))
-        forma = rd.uniform(float(beta_25), float(beta_75))
+        for k in range(n_k):
+            escala = rd.uniform(float(eta_25), float(eta_75))
+            forma = rd.uniform(float(beta_25), float(beta_75))
 
-        # DM com imprecisão relativa ID (%)
-        lo_dm = max((1.0 - ID / 100.0) * DM, EPS)
-        hi_dm = (1.0 + ID / 100.0) * DM
-        if hi_dm <= lo_dm:
-            d_medio = lo_dm
-        else:
-            d_medio = rd.uniform(lo_dm, hi_dm)
+            # DM com imprecisão relativa ID (%)
+            lo_dm = max((1.0 - ID / 100.0) * DM, EPS)
+            hi_dm = (1.0 + ID / 100.0) * DM
+            if hi_dm <= lo_dm:
+                d_medio = lo_dm
+            else:
+                d_medio = rd.uniform(lo_dm, hi_dm)
 
-        # Construção de pontos (t) para ajuste (evitar 0)
-        x_input = np.zeros(30, dtype=float)
-        y_input = np.zeros(30, dtype=float)
-        ini = 0.0
+            # Construção de pontos (t) para ajuste (evitar 0)
+            x_input = np.zeros(30, dtype=float)
+            y_input = np.zeros(30, dtype=float)
+            ini = 0.0
 
-        valid_curve = True
-        for i in range(30):
-            ini += 0.1  # 0.1, 0.2, ..., 3.0
-            t = ini * escala
-            x_input[i] = np.log(max(t, EPS))
+            valid_curve = True
+            for i in range(30):
+                ini += 0.1  # 0.1, 0.2, ..., 3.0
+                t = ini * escala
+                x_input[i] = np.log(max(t, EPS))
 
-            # Probabilidade acumulada "observada" para (Z - H) <= t
+                # Probabilidade acumulada "observada" para (Z - H) <= t
+                try:
+                    area = dblquad(
+                        lambda h, z: fz(z, forma, escala) * fh(h, d_medio),
+                        t, 10.0 * escala,
+                        lambda z: 0.0, lambda z: z - t
+                    )[0]
+                except Exception:
+                    valid_curve = False
+                    break
+
+                prob = 1.0 - float(area)
+                prob = safe_clip01(prob)
+
+                y_input[i] = np.log(-np.log(1.0 - prob))
+
+            if not valid_curve:
+                continue
+
+            x_fit, y_fit, ok = ensure_finite_pair(x_input, y_input)
+            if not ok:
+                continue
+
             try:
-                area = dblquad(
-                    lambda h, z: fz(z, forma, escala) * fh(h, d_medio),
-                    t, 10.0 * escala,
-                    lambda z: 0.0, lambda z: z - t
-                )[0]
+                A, B = np.polyfit(x_fit, y_fit, 1)
             except Exception:
-                valid_curve = False
-                break
+                continue
 
-            prob = 1.0 - float(area)
-            prob = safe_clip01(prob)
+            beta_x = A
+            if not np.isfinite(beta_x) or beta_x <= 0:
+                continue
 
-            y_input[i] = np.log(-np.log(1.0 - prob))
+            eta_x = float(np.exp(-B / beta_x))
+            if not np.isfinite(eta_x) or eta_x <= 0:
+                continue
 
-        if not valid_curve:
-            continue
+            sample_beta_x.append(beta_x)
+            sample_eta_x.append(eta_x)
 
-        x_fit, y_fit, ok = ensure_finite_pair(x_input, y_input)
-        if not ok:
-            continue
+        if len(sample_beta_x) < 10:
+            st.info("Delay-time não informado de forma suficiente (ou respostas extremas). Parâmetros de X (= Z − H) não foram estimados.")
+            st.stop()
 
-        try:
-            A, B = np.polyfit(x_fit, y_fit, 1)
-        except Exception:
-            continue
+        sample_beta_x = np.asarray(sample_beta_x)
+        sample_eta_x = np.asarray(sample_eta_x)
 
-        beta_x = A
-        if not np.isfinite(beta_x) or beta_x <= 0:
-            continue
+        beta_x_25 = np.percentile(sample_beta_x, 25)
+        beta_x_75 = np.percentile(sample_beta_x, 75)
+        beta_x_central = 0.5 * (beta_x_25 + beta_x_75)
+        beta_x_imprecisao = 100.0 * (beta_x_75 - beta_x_central) / max(beta_x_central, EPS)
 
-        eta_x = float(np.exp(-B / beta_x))
-        if not np.isfinite(eta_x) or eta_x <= 0:
-            continue
+        eta_x_25 = np.percentile(sample_eta_x, 25)
+        eta_x_75 = np.percentile(sample_eta_x, 75)
+        eta_x_central = 0.5 * (eta_x_25 + eta_x_75)
+        eta_x_imprecisao = 100.0 * (eta_x_75 - eta_x_central) / max(eta_x_central, EPS)
 
-        sample_beta_x.append(beta_x)
-        sample_eta_x.append(eta_x)
-
-    if len(sample_beta_x) < 10:
-        st.warning("Não foi possível estimar os parâmetros de X (= Z − H) com estabilidade suficiente. Ajuste TM/DM/ID ou use respostas menos extremas.")
-        st.stop()
-
-    sample_beta_x = np.asarray(sample_beta_x)
-    sample_eta_x = np.asarray(sample_eta_x)
-
-    beta_x_25 = np.percentile(sample_beta_x, 25)
-    beta_x_75 = np.percentile(sample_beta_x, 75)
-    beta_x_central = 0.5 * (beta_x_25 + beta_x_75)
-    beta_x_imprecisao = 100.0 * (beta_x_75 - beta_x_central) / max(beta_x_central, EPS)
-
-    eta_x_25 = np.percentile(sample_eta_x, 25)
-    eta_x_75 = np.percentile(sample_eta_x, 75)
-    eta_x_central = 0.5 * (eta_x_25 + eta_x_75)
-    eta_x_imprecisao = 100.0 * (eta_x_75 - eta_x_central) / max(eta_x_central, EPS)
-
-    st.markdown("### Time to Defect – Weibull Parameters")
-    st.write(f"**Shape (beta):** {beta_x_central:.2f} (IQR: {beta_x_25:.2f} – {beta_x_75:.2f})")
-    st.write(f"**Scale (eta):** {eta_x_central:.2f} {unit} (IQR: {eta_x_25:.2f} – {eta_x_75:.2f})")
-    st.write(f"**Beta relative imprecision:** {beta_x_imprecisao:.2f}%")
-    st.write(f"**Eta relative imprecision:** {eta_x_imprecisao:.2f}%")
+        st.markdown("### Time to Defect – Weibull Parameters")
+        st.write(f"**Shape (beta):** {beta_x_central:.2f} (IQR: {beta_x_25:.2f} – {beta_x_75:.2f})")
+        st.write(f"**Scale (eta):** {eta_x_central:.2f} {unit} (IQR: {eta_x_25:.2f} – {eta_x_75:.2f})")
+        st.write(f"**Beta relative imprecision:** {beta_x_imprecisao:.2f}%")
+        st.write(f"**Eta relative imprecision:** {eta_x_imprecisao:.2f}%")
+    else:
+        st.info("Delay-time (DM) não informado (> 0). Foram estimados apenas os parâmetros de Z (tempo até falha).")
